@@ -1,0 +1,97 @@
+name: Deploy to GitOps Environment
+
+inputs:
+  gitops-repo:
+    type: string
+    description: 'URL to the GitOps repository'
+    required: true
+    default: 'https://github.com/Gloweet/gitops-infra'
+  gitops-app:
+    type: string
+    description: 'Name of the application to deploy'
+    required: true
+  target-env:
+    type: choice
+    description: 'Environment to deploy'
+    required: true
+    default: 'qa'
+    options:
+      - qa
+      - staging
+      - production
+  image-tag:
+    type: string
+    description: 'New image tag to use in the target environment'
+    required: true
+  bypass-approval:
+    type: boolean
+    description: 'If true, skips the manual approval step for auto deployments'
+    required: true
+    default: false
+  branch-filters:
+    type: string
+    description: 'Comma-separated list of branch patterns to allow deployment (e.g., "main,release/*,develop")'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout the GitOps repository
+      uses: actions/checkout@v4.2.2
+      with:
+        repository: ${{ inputs.gitops-repo }}
+        token: ${{ secrets.GITOPS_REPO_TOKEN }}
+
+    - name: Check if the branch matches branch-filters
+      run: |
+        # Get the branch name from github.ref
+        branch="${GITHUB_REF#refs/heads/}"
+        
+        # Convert the comma-separated branch-filters input into an array
+        IFS=',' read -r -a branch_filters <<< "${{ inputs.branch-filters }}"
+
+        # Flag to track if there's a match
+        matched=false
+
+        # Check if the branch matches any pattern in branch-filters
+        for pattern in "${branch_filters[@]}"; do
+          if [[ "$branch" == $pattern ]]; then
+            matched=true
+            break
+          fi
+        done
+
+        # Fail the step if no match was found
+        if [ "$matched" = false ]; then
+          echo "Branch '$branch' does not match any of the specified branch filters: ${branch_filters[@]}"
+          exit 1
+        else
+          echo "Branch '$branch' matches one of the specified filters."
+        fi
+
+    - name: Generate token
+      if: ${{ inputs.bypass-approval == false }}
+      id: generate_token
+      uses: tibdex/github-app-token@v1
+      with:
+        app_id: ${{ secrets.APP_ID }}
+        private_key: ${{ secrets.APP_PRIVATE_KEY }}
+
+    - name: Wait for approval
+      if: ${{ inputs.bypass-approval == false }}
+      uses: trstringer/manual-approval@v1.9.1
+      with:
+        secret: ${{ steps.generate_token.outputs.token }}
+        approvers: devs
+        minimum-approvals: 1
+        issue-title: "Deploying v${{ inputs.image-tag }}"
+        issue-body: "Please approve or deny the deployment."
+        timeout-minutes: 60
+
+    - name: Deploy
+      uses: ./github/actions/update-docker-image-composite-action
+      with:
+        gitops-repo: ${{ inputs.gitops-repo }}
+        gitops-app: ${{ inputs.gitops-app }}
+        target-env: ${{ inputs.target-env }}
+        image-tag: ${{ inputs.image-tag }}

@@ -1,0 +1,43 @@
+name: Update Docker Image in GitOps Repository
+
+inputs:
+  gitops-repo:
+    type: string
+    description: 'URL to the GitOps repository'
+    required: true
+    default: 'https://github.com/Gloweet/gitops-infra'
+  gitops-app:
+    type: string
+    description: 'Name of the application to update'
+    required: true
+  target-env:
+    type: choice
+    description: 'Environment to deploy'
+    required: true
+    default: 'qa'
+    options:
+      - qa
+      - staging
+      - production
+  image-tag:
+    type: string
+    description: 'New image tag to use in the target environment'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout the GitOps repository
+      uses: actions/checkout@v4.2.2
+      with:
+        repository: ${{ inputs.gitops-repo }}
+        token: ${{ secrets.GITOPS_REPO_TOKEN }}
+    
+    - name: Run update-docker-image.sh script
+      run: |
+        echo "Changing directory to the GitOps repository"
+        cd ${{ inputs.gitops-repo }}
+        
+        echo "Running update-docker-image.sh with app: ${{ inputs.gitops-app }}, env: ${{ inputs.target-env }}, image-tag: ${{ inputs.image-tag }}"
+        chmod +x ./update-docker-image.sh
+        ./update-docker-image.sh ${{ inputs.gitops-app }} ${{ inputs.target-env }} ${{ inputs.image-tag }}
