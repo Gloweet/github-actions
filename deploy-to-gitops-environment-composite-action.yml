@@ -1,5 +1,8 @@
 name: Deploy to GitOps Environment
 
+permissions:
+  issues: write
+
 inputs:
   gitops-repo:
     type: string

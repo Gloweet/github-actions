@@ -1,5 +1,8 @@
 name: Update Docker Image in GitOps Repository
 
+permissions:
+  contents: write
+
 inputs:
   gitops-repo:
     type: string
