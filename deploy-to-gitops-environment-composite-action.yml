@@ -89,7 +89,7 @@ runs:
         timeout-minutes: 60
 
     - name: Deploy
-      uses: ./github/actions/update-docker-image-composite-action
+      uses: Gloweet/gitops-infra/update-docker-image-composite-action
       with:
         gitops-repo: ${{ inputs.gitops-repo }}
         gitops-app: ${{ inputs.gitops-app }}
